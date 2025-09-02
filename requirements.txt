@@ -6,3 +6,4 @@ pandas
 numpy
 joblib
 shap
+huggingface_hub

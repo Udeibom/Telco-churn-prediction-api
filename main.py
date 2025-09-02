@@ -6,17 +6,35 @@ import numpy as np
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Literal, Optional
+from typing import Literal
 import shap
+from huggingface_hub import hf_hub_download, login
 
-# Load model (joblib dump of sklearn Pipeline with preprocessor + classifier)
-MODEL_PATH = os.getenv("MODEL_PATH", "best_baseline_model.pkl")
+# Constants for Hugging Face repo and model filename
+HUGGINGFACE_REPO = "https://huggingface.co/Udeibom/telco_churn_model"
+MODEL_FILENAME = "best_baseline_model.pkl"
+
+def download_model():
+    token = os.getenv("HUGGINGFACE_TOKEN")
+    if token:
+        login(token=token)  # Authenticate to access private repo
+    model_path = hf_hub_download(repo_id=HUGGINGFACE_REPO, filename=MODEL_FILENAME)
+    return model_path
+
+# Load model: either from MODEL_PATH env var or download from Hugging Face
+MODEL_PATH = os.getenv("MODEL_PATH")
+if MODEL_PATH is None:
+    try:
+        MODEL_PATH = download_model()
+    except Exception as e:
+        raise RuntimeError(f"Could not download model from Hugging Face: {e}")
+
 try:
     model = joblib.load(MODEL_PATH)
 except Exception as e:
     raise RuntimeError(f"Could not load model at {MODEL_PATH}: {e}")
 
-# Try to extract the pipeline parts
+# Try to extract pipeline parts
 preprocessor = None
 classifier = model
 if hasattr(model, "named_steps"):
