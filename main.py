@@ -10,18 +10,19 @@ from typing import Literal
 import shap
 from huggingface_hub import hf_hub_download, login
 
-# Constants for Hugging Face repo and model filename
-HUGGINGFACE_REPO = "https://huggingface.co/Udeibom/telco_churn_model"
+# Hugging Face repo setup (use repo_id, not full URL)
+HUGGINGFACE_REPO = "Udeibom/telco_churn_model"
 MODEL_FILENAME = "best_baseline_model.pkl"
 
 def download_model():
     token = os.getenv("HUGGINGFACE_TOKEN")
     if token:
-        login(token=token)  # Authenticate to access private repo
+        login(token=token)  # Authenticate for private repos
+    # Will work for both public and private repos
     model_path = hf_hub_download(repo_id=HUGGINGFACE_REPO, filename=MODEL_FILENAME)
     return model_path
 
-# Load model: either from MODEL_PATH env var or download from Hugging Face
+# Load model: either from MODEL_PATH env var or Hugging Face
 MODEL_PATH = os.getenv("MODEL_PATH")
 if MODEL_PATH is None:
     try:
@@ -34,37 +35,37 @@ try:
 except Exception as e:
     raise RuntimeError(f"Could not load model at {MODEL_PATH}: {e}")
 
-# Try to extract pipeline parts
+# Extract pipeline parts if present
 preprocessor = None
 classifier = model
 if hasattr(model, "named_steps"):
     preprocessor = model.named_steps.get("preprocessor", None)
     classifier = model.named_steps.get("classifier", model)
 
-# Build SHAP explainer lazily (for tree-based models)
+# SHAP explainer (lazy init)
 explainer = None
 try:
     if "xgb" in str(type(classifier)).lower() or hasattr(classifier, "feature_importances_"):
-        explainer = shap.TreeExplainer(classifier)  # may be slow on first call
+        explainer = shap.TreeExplainer(classifier)
 except Exception:
     explainer = None
 
 app = FastAPI(
     title="Telco Churn Prediction API",
     description="Predict churn and return explanations (small SHAP summary)",
-    version="1.1"
+    version="1.2"
 )
 
-# Allow CORS
+# Enable CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # tighten in prod
+    allow_origins=["*"],  # tighten in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Strict input schema
+# Input schema
 class CustomerData(BaseModel):
     gender: Literal["Male", "Female"]
     SeniorCitizen: Literal[0, 1]
