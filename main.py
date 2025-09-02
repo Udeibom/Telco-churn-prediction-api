@@ -8,27 +8,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Literal
 import shap
-from huggingface_hub import hf_hub_download, login
 
-# Hugging Face repo setup (use repo_id, not full URL)
-HUGGINGFACE_REPO = "Udeibom/telco_churn_model"
-MODEL_FILENAME = "best_baseline_model.pkl"
+# -------------------------------------------------------------------
+# Load model locally (make sure you commit `model/best_baseline_model.pkl` to GitHub)
+# -------------------------------------------------------------------
+MODEL_PATH = os.getenv("MODEL_PATH", "model/best_baseline_model.pkl")
 
-def download_model():
-    token = os.getenv("HUGGINGFACE_TOKEN")
-    if token:
-        login(token=token)  # Authenticate for private repos
-    # Will work for both public and private repos
-    model_path = hf_hub_download(repo_id=HUGGINGFACE_REPO, filename=MODEL_FILENAME)
-    return model_path
-
-# Load model: either from MODEL_PATH env var or Hugging Face
-MODEL_PATH = os.getenv("MODEL_PATH")
-if MODEL_PATH is None:
-    try:
-        MODEL_PATH = download_model()
-    except Exception as e:
-        raise RuntimeError(f"Could not download model from Hugging Face: {e}")
+if not os.path.exists(MODEL_PATH):
+    raise RuntimeError(f"Model file not found at {MODEL_PATH}. Did you add it to the repo?")
 
 try:
     model = joblib.load(MODEL_PATH)
@@ -50,10 +37,13 @@ try:
 except Exception:
     explainer = None
 
+# -------------------------------------------------------------------
+# FastAPI app
+# -------------------------------------------------------------------
 app = FastAPI(
     title="Telco Churn Prediction API",
     description="Predict churn and return explanations (small SHAP summary)",
-    version="1.2"
+    version="1.3"
 )
 
 # Enable CORS
@@ -92,6 +82,9 @@ class CustomerData(BaseModel):
     MonthlyCharges: float
     TotalCharges: float
 
+# -------------------------------------------------------------------
+# Routes
+# -------------------------------------------------------------------
 @app.get("/health")
 def health():
     return {"status": "ok"}
